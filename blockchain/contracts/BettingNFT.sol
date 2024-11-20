@@ -4,38 +4,35 @@ pragma solidity ^0.8.22;
 import "@openzeppelin/contracts/token/ERC1155/ERC1155.sol";
 import "@openzeppelin/contracts/access/Ownable.sol";
 import "@openzeppelin/contracts/token/ERC1155/extensions/ERC1155Supply.sol";
+import "hardhat/console.sol";
 
 contract GhamCompetition is ERC1155, ERC1155Supply, Ownable {
-    string[] public teams = [
-        "Team A", "Team B", "Team C", "Team D",
-        "Team E", "Team F", "Team G", "Team H",
-        "Team I", "Team J", "Team K", "Team L",
-        "Team M", "Team N", "Team O", "Team P"
-    ];
-
+    uint64 public MAX_TEAMS;
     uint256 public mintStartTime;
     uint256 public mintEndTime;
     uint256 public constant MINT_PRICE = 0.1 ether;
     address payable public treasury;
     uint256 public winnerSetTime;
-    uint256[] public winnerRewards;
+    mapping(uint64 => uint256) public winnerRewards;
     bool public winnersSet;
 
     constructor(
         address payable _treasury,
         uint256 _mintStartTime,
         uint256 _mintEndTime,
+        uint64 _maxTeams,
         address initialOwner
     )
         ERC1155("https://bettingham.ch/games/competitions/1/{id}")
         Ownable(initialOwner)
     {   
-        require(_mintStartTime < _mintEndTime, "Invalid mint time range");
-        require(_treasury != address(0), "Treasury address cannot be zero");
+        require(_mintStartTime < _mintEndTime);
+        require(_treasury != address(0));
 
         treasury = _treasury;
         mintStartTime = _mintStartTime;
         mintEndTime = _mintEndTime;
+        MAX_TEAMS = _maxTeams;
     }
 
     /**
@@ -46,14 +43,14 @@ contract GhamCompetition is ERC1155, ERC1155Supply, Ownable {
      * @param data Additional data.
      */
     function mint(address account, uint256 id, uint256 amount, bytes memory data) external payable {
-        require(id > 0 && id <= teams.length, "Invalid team ID");
-        require(block.timestamp >= mintStartTime, "Minting not started");
-        require(block.timestamp <= mintEndTime, "Minting period over");
-        require(msg.value == MINT_PRICE * amount, "Incorrect ETH amount");
+        require(id > 0 && id <= MAX_TEAMS);
+        require(block.timestamp >= mintStartTime);
+        require(block.timestamp <= mintEndTime);
+        require(msg.value == MINT_PRICE * amount);
 
         // Transfer funds to the treasury
         (bool success, ) = treasury.call{value: 0.02 ether * amount}("");
-        require(success, "Treasury transfer failed");
+        require(success);
 
         // Mint the token(s)
         _mint(account, id, amount, data);
@@ -75,16 +72,16 @@ contract GhamCompetition is ERC1155, ERC1155Supply, Ownable {
         // Calculate total payment required
         uint256 totalAmount = 0;
         for (uint256 i = 0; i < amounts.length; i++) {
-            require(ids[i] > 0 && ids[i] <= teams.length, "Invalid team ID");
+            require(ids[i] > 0 && ids[i] <= MAX_TEAMS);
             totalAmount += amounts[i];
         }
-        require(block.timestamp >= mintStartTime, "Minting not started");
-        require(block.timestamp <= mintEndTime, "Minting period over");
-        require(msg.value == MINT_PRICE * totalAmount, "Incorrect ETH amount");
+        require(block.timestamp >= mintStartTime);
+        require(block.timestamp <= mintEndTime);
+        require(msg.value == MINT_PRICE * totalAmount);
 
         // Transfer funds to the treasury
         (bool success, ) = treasury.call{value: 0.02 ether * totalAmount}("");
-        require(success, "Treasury transfer failed");
+        require(success);
 
         _mintBatch(to, ids, amounts, data);
     }
@@ -94,35 +91,35 @@ contract GhamCompetition is ERC1155, ERC1155Supply, Ownable {
      * @param id The token ID to burn.
      * @param amount The number of NFTs to burn.
      */
-    function burnAndClaim(uint256 id, uint256 amount) external {
-        require(winnersSet, "Winners not set yet");
-        require(block.timestamp >= winnerSetTime + 2 weeks, "Claim period not started");
-        require(winnerRewards[id] > 0, "Not a winner ID");
+    function burnAndClaim(address addr, uint64 id, uint256 amount) external onlyOwner {
+        require(winnersSet);
+        require(block.timestamp >= winnerSetTime + 2 weeks);
+        require(winnerRewards[id] > 0);
 
         // Burn the tokens
-        _burn(msg.sender, id, amount);
+        _burn(addr, id, amount);
 
         // Calculate the reward
         uint256 reward = winnerRewards[id] * amount;
 
         // Transfer the reward
         (bool success, ) = msg.sender.call{value: reward}("");
-        require(success, "Reward transfer failed");
+        require(success);
     }
 
      /**
      * @dev Swipe any remaining contract balance after one year since winners were set.
      */
     function swipe() external onlyOwner {
-        require(winnersSet, "Winners not set yet");
-        require(block.timestamp >= winnerSetTime + 365 days, "Cannot swipe before one year");
+        require(winnersSet);
+        require(block.timestamp >= winnerSetTime + 365 days);
 
         uint256 remainingBalance = address(this).balance;
-        require(remainingBalance > 0, "No balance to swipe");
+        require(remainingBalance > 0);
 
         // Transfer the remaining balance to the owner
         (bool success, ) = msg.sender.call{value: remainingBalance}("");
-        require(success, "Swipe transfer failed");
+        require(success);
     }
 
 
@@ -130,20 +127,20 @@ contract GhamCompetition is ERC1155, ERC1155Supply, Ownable {
      * @dev Set the list of winners and calculate ETH rewards per NFT dynamically.
      * @param winners The list of winner IDs.
      */
-    function setWinners(uint256[] memory winners) external onlyOwner {
-        require(!winnersSet, "Winners already set");
-        require(block.timestamp >= mintEndTime, "Cannot set winners before mint ends");
-        require(winners.length > 0, "Winners list cannot be empty");
+    function setWinners(uint64[] memory winners) external onlyOwner {
+        require(!winnersSet);
+        require(block.timestamp >= mintEndTime);
+        require(winners.length > 0);
 
         uint256 totalWinnerSupply = 0;
 
         // Calculate the total number of winning NFTs
         for (uint256 i = 0; i < winners.length; i++) {
-            require(winners[i] > 0 && winners[i] <= teams.length, "Invalid winner ID");
+            require(winners[i] > 0 && winners[i] <= MAX_TEAMS);
             uint256 supply = totalSupply(winners[i]);
             totalWinnerSupply += supply;
         }
-        require(totalWinnerSupply > 0, "Total winner supply must be > 0");
+        require(totalWinnerSupply > 0);
 
         // Calculate rewards per NFT
         uint256 rewardPerNFT = address(this).balance / totalWinnerSupply;
@@ -156,22 +153,12 @@ contract GhamCompetition is ERC1155, ERC1155Supply, Ownable {
     }
 
     /**
-     * @dev Get team name by token ID.
-     * @param tokenId The token ID.
-     * @return The team name.
-     */
-    function getTeam(uint256 tokenId) public view returns (string memory) {
-        require(tokenId > 0 && tokenId <= teams.length, "Invalid team ID");
-        return teams[tokenId - 1];
-    }
-
-    /**
      * @dev Override URI for dynamic metadata.
      * @param tokenId The token ID.
      * @return The URI for the token.
      */
     function uri(uint256 tokenId) public view override returns (string memory) {
-        require(tokenId > 0 && tokenId <= teams.length, "Invalid team ID");
+        require(tokenId > 0 && tokenId <= MAX_TEAMS);
         return string(abi.encodePacked(super.uri(tokenId)));
     }
 

@@ -34,12 +34,6 @@ contract GhamTreasury is Initializable, OwnableUpgradeable, UUPSUpgradeable {
         override
     {}
 
-    // Deposit function to add funds to the treasury
-    function deposit() external payable onlyOwner {
-        require(msg.value > 0);
-        emit FundsDeposited(msg.sender, msg.value);
-    }
-
     // Withdraw function with 1% monthly limit
     function withdraw(uint256 amount) external onlyOwner {
         require(block.timestamp >= lastWithdrawalTime + 30 days);

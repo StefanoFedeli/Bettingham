@@ -25,19 +25,19 @@ describe("GhamTreasury Contract", function () {
         const Treasury = await ethers.getContractFactory("GhamTreasury");
         treasury = await upgrades.deployProxy(Treasury, [owner.address], { initializer: "initialize" });
         await treasury.waitForDeployment();
-        const proxyAddress = await treasury.getAddress();
-
-        // Ensure the deployment was successful
-        if (!proxyAddress) {
-            throw new Error("Proxy deployment failed, address is undefined.");
-        }
-  
-        console.log("Deployed Treasury Proxy Address: ", proxyAddress);
-    
-        // Fetch the implementation contract address (where the logic resides)
-        const implementationAddress = await upgrades.erc1967.getImplementationAddress(proxyAddress);
-        console.log("Deployed Implementation Address: ", implementationAddress);
             
+    });
+
+    this.afterEach(async function () {
+        //should print the proxy balance
+        const proxyBalance = await ethers.provider.getBalance(await treasury.getAddress());
+        console.log("Proxy Contract Balance:", ethers.formatEther(proxyBalance));
+
+        // Should print the implementation contract balance
+        const implementationAddress = await upgrades.erc1967.getImplementationAddress(await treasury.getAddress());
+        const implementationBalance = await ethers.provider.getBalance(implementationAddress);
+        console.log("Implementation Contract Balance:", ethers.formatEther(implementationBalance));
+
     });
 
     it("should verify the proxy address", async function () {
@@ -46,30 +46,13 @@ describe("GhamTreasury Contract", function () {
         expect(await treasury.getAddress()).to.not.be.null;
       });
 
-    describe("Depositing funds", function () {
-        it("should allow the owner to deposit funds", async function () {
-            const depositAmount = ethers.parseEther("1"); // 1 ETH
-
-            await expect(() => treasury.connect(owner).deposit({ value: depositAmount }))
-                .to.changeEtherBalances([owner, treasury], [-depositAmount, depositAmount]);
-
-            // Check that the deposit event was emitted
-            await expect(treasury.connect(owner).deposit({ value: depositAmount }))
-                .to.emit(treasury, "FundsDeposited")
-                .withArgs(owner.address, depositAmount);
-        });
-
-        it("should reject deposits from non-owner", async function () {
-            const depositAmount = ethers.parseEther("1"); // 1 ETH
-            await expect(treasury.connect(otherAccount).deposit({ value: depositAmount }))
-                .to.be.reverted;
-        });
-    });
-
     describe("Withdrawing funds", function () {
         it("should allow the owner to withdraw 1% of the treasury balance", async function () {
             const depositAmount = ethers.parseEther("100"); // 100 ETH
-            await treasury.connect(owner).deposit({ value: depositAmount });
+            await owner.sendTransaction({
+                to: await treasury.getAddress(),
+                value: depositAmount
+            })
 
             const withdrawAmount = depositAmount / BigInt(100); // 1% of 100 ETH
 
@@ -87,7 +70,10 @@ describe("GhamTreasury Contract", function () {
 
         it("should reject withdrawals exceeding 1% of the balance", async function () {
             const depositAmount = ethers.parseEther("100"); // 100 ETH
-            await treasury.connect(owner).deposit({ value: depositAmount });
+            await owner.sendTransaction({
+                to: await treasury.getAddress(),
+                value: depositAmount
+            })
 
             const withdrawAmount = depositAmount* BigInt(2) / BigInt(100); // 2% of 100 ETH (exceeds the 1% limit)
 
@@ -97,7 +83,10 @@ describe("GhamTreasury Contract", function () {
 
         it("should reject withdrawals if 30 days have not passed since last withdrawal", async function () {
             const depositAmount = ethers.parseEther("100"); // 100 ETH
-            await treasury.connect(owner).deposit({ value: depositAmount });
+            await owner.sendTransaction({
+                to: await treasury.getAddress(),
+                value: depositAmount
+            })
 
             const withdrawAmount = depositAmount / BigInt(100); // 1% of 100 ETH
 
@@ -114,7 +103,10 @@ describe("GhamTreasury Contract", function () {
     describe("Balance checks", function () {
         it("should return the correct current balance", async function () {
             const depositAmount = ethers.parseEther("50"); // 50 ETH
-            await treasury.connect(owner).deposit({ value: depositAmount });
+            await owner.sendTransaction({
+                to: await treasury.getAddress(),
+                value: depositAmount
+            })
 
             const balance = await treasury.getBalance();
             expect(balance).to.equal(depositAmount);
@@ -124,7 +116,10 @@ describe("GhamTreasury Contract", function () {
     describe("Withdraw function with contract balance", function () {
         it("should allow the owner to withdraw the correct amount after 30 days", async function () {
             const depositAmount = ethers.parseEther("100"); // 100 ETH
-            await treasury.connect(owner).deposit({ value: depositAmount });
+            await owner.sendTransaction({
+                to: await treasury.getAddress(),
+                value: depositAmount
+            })
 
             const withdrawAmount = depositAmount / BigInt(100); // 1% of 100 ETH
 

@@ -13,9 +13,10 @@ contract GhamPlatform is Initializable, OwnableUpgradeable, UUPSUpgradeable {
         _disableInitializers();
     }
 
-    function initialize(address initialOwner) initializer public {
+    function initialize(address initialOwner, address payable _treasuryProxy) initializer public {
         __Ownable_init(initialOwner);
         __UUPSUpgradeable_init();
+        treasuryProxy = _treasuryProxy;
     }
 
     function _authorizeUpgrade(address newImplementation)
@@ -36,7 +37,8 @@ contract GhamPlatform is Initializable, OwnableUpgradeable, UUPSUpgradeable {
      */
     function createCompetition(
         uint256 mintStartTime,
-        uint256 mintEndTime
+        uint256 mintEndTime,
+        uint64 teams
     ) external onlyOwner returns (address) {
         // Increment competition counter to generate unique competition IDs
         competitionCounter++;
@@ -46,6 +48,7 @@ contract GhamPlatform is Initializable, OwnableUpgradeable, UUPSUpgradeable {
             treasuryProxy,
             mintStartTime,
             mintEndTime,
+            teams,
             address(this)
         );
 
@@ -61,7 +64,7 @@ contract GhamPlatform is Initializable, OwnableUpgradeable, UUPSUpgradeable {
     /**
      * @dev Set winners for a specific competition.
      */
-    function declareWinners(uint256 competitionId, uint256[] memory winners) external onlyOwner {
+    function declareWinners(uint256 competitionId, uint64[] memory winners) external onlyOwner {
         address competitionAddress = competitions[competitionId];
         require(competitionAddress != address(0), "Competition does not exist");
 
@@ -72,12 +75,12 @@ contract GhamPlatform is Initializable, OwnableUpgradeable, UUPSUpgradeable {
     /**
      * @dev Claim reward for a specific competition by burning winner NFTs.
      */
-    function claimReward(uint256 competitionId, uint256 tokenId, uint256 amount) external {
+    function claimReward(uint256 competitionId, uint64 tokenId, uint256 amount) external {
         address competitionAddress = competitions[competitionId];
         require(competitionAddress != address(0), "Competition does not exist");
 
         GhamCompetition competition = GhamCompetition(competitionAddress);
-        competition.burnAndClaim(tokenId, amount);
+        competition.burnAndClaim(msg.sender, tokenId, amount);
     }
 
     /**

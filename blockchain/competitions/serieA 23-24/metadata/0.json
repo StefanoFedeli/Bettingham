@@ -1,0 +1,8 @@
+{
+    "name": "Atalanta",
+    "description": "Token representing to bet of Atalanta winning the Serie A 2023-24",
+    "symbol": "ATA1",
+    "image": "/0.webp",
+    "attributes": [],
+    "external_url": "http://bettingham.ch/competition/serieA2324"
+}
